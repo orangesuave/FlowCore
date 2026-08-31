@@ -119,7 +119,6 @@ FlowCore adapts its entire scoring, talent weighting, and perk recommendations b
 | `/fc glyphs` | Inspect equipped major/minor glyphs and rotational bonuses |
 | `/fc gcd` | Diagnostic inspection of effective haste GCD, current GCD, and queue window |
 | `/fc why` | Explain the real-time scoring logic behind the current recommended cast |
-| `/fc macro` | Automatically generate Character-Specific mouseover macros (255-char safe) |
 | `/fc ui` | Toggle Timeline HUD bar |
 | `/fc lock` | Lock or unlock HUD position for dragging |
 | `/fc minimap` | Toggle minimap button visibility |
