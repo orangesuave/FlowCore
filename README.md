@@ -20,7 +20,7 @@ FlowCore dynamically analyzes your equipped gear, gems, enchants, talent tree di
 
 | Full Talent, Perk & Simulation Advisor | In-Game Configuration Panel |
 | :---: | :---: |
-| ![Talent & Build Advisor](screenshots/build_advisor.png)<br>*Side-panel keystone evaluation, BiS perk scoring, and Lich King 25H DPS sims.* | ![Configuration Panel](screenshots/config_panel.png)<br>*Approach selection, latency compensation sliders, spell management, and perk overview.* |
+| ![Talent & Build Advisor](screenshots/build_advisor.png)<br>*Side-panel keystone evaluation, BiS perk scoring, and Lich King 25H DPS sims.* | ![Configuration Panel](screenshots/config_panel.png) ![Configuration Panel](screenshots/config_panel2.png)<br>*Approach selection, latency compensation sliders, spell management, and perk overview.* |
 
 | Interactive Minimap Button & Status Tooltip |
 | :---: |
