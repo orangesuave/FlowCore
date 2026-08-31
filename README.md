@@ -18,13 +18,13 @@ FlowCore dynamically analyzes your equipped gear, gems, enchants, talent tree di
 | :---: | :---: |
 | ![Floating Hero HUD](screenshots/hero_hud.png)<br>*Next recommended cast, keybind badge, reactive proc glow, and latency queue indicator.* | ![EventHorizon Multi-Track](screenshots/eventhorizon_timeline.png)<br>*10-second multi-track cast forecast, ground tick intervals, and DoT expirations.* |
 
-| Full Talent, Perk & Simulation Advisor | In-Game Configuration Panel |
+| Full Talent, Perk & Simulation Advisor | Interactive Minimap Button & Status Tooltip |
 | :---: | :---: |
-| ![Talent & Build Advisor](screenshots/build_advisor.png)<br>*Side-panel keystone evaluation, BiS perk scoring, and Lich King 25H DPS sims.* | ![Configuration Panel](screenshots/config_panel.png) ![Configuration Panel](screenshots/config_panel2.png)<br>*Approach selection, latency compensation sliders, spell management, and perk overview.* |
+| ![Talent & Build Advisor](screenshots/build_advisor.png)<br>*Side-panel keystone evaluation, BiS perk scoring, and Lich King 25H DPS sims.* | ![Minimap Button & Status Tooltip](screenshots/minimap_button.png)<br>*Draggable minimap icon showing active spec, role, combat approach, and class perk sets.* |
 
-| Interactive Minimap Button & Status Tooltip |
+| In-Game Configuration Panel |
 | :---: |
-| ![Minimap Button & Status Tooltip](screenshots/minimap_button.png)<br>*Draggable minimap icon showing active spec, role, combat approach, and class perk sets.* |
+| ![Configuration Panel](screenshots/config_panel.png) ![Configuration Panel](screenshots/config_panel2.png)<br>*Approach selection, latency compensation sliders, spell management, and perk overview.* |
 
 ---
 
