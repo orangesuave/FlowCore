@@ -24,7 +24,7 @@ FlowCore dynamically analyzes your equipped gear, gems, enchants, talent tree di
 
 | In-Game Configuration Panel | Custom Spell and Ability Management |
 | :---: | :---: |
-| ![Configuration Panel](screenshots/config_panel.png) <br>*Approach selection, latency compensation sliders* | ![Configuration Panel](screenshots/config_panel2.png <br>*Spell tracking and priority overrides*) |
+| ![Configuration Panel](screenshots/config_panel.png) <br>*Approach selection, latency compensation sliders* | ![Configuration Panel](screenshots/config_panel2.png) <br>*Spell tracking and priority overrides*) |
 
 ---
 
