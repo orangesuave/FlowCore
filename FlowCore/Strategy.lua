@@ -2043,102 +2043,140 @@ function FC:InspectTargetNPC()
     }
 end
 
-function FC:RunSimulationBenchmarks(specName)
-    specName = specName or (self.GetActiveSpecName and self:GetActiveSpecName()) or "Fire"
+function FC:CalculateSimValues(pMods, role, approach)
     if self.UpdatePlayerStats then self:UpdatePlayerStats() end
     local p = self.state.player or {}
     local s = p.stats or {}
-    local pClass = self.playerClass or select(2, UnitClass("player")) or "MAGE"
+    local pClass = self.playerClass or (UnitClass and select(2, UnitClass("player"))) or "DEATHKNIGHT"
+    pMods = pMods or (self.GetAggregatedPerkModifiers and self:GetAggregatedPerkModifiers()) or {}
+    role = role or (FC.db and FC.db.playerRole) or "DPS"
+    approach = approach or (FC.db and FC.db.combatApproach) or "Balanced"
 
-    local ext = self.extState or {}
-    local pMods = ext.aggregatedModifiers or (self.GetAggregatedPerkModifiers and self:GetAggregatedPerkModifiers()) or {}
+    local baseAp = (s.attackPower or 4500) * (1.0 + (pMods.attackPowerPct or 0))
+    local baseSp = (s.spellDamage or 2200) * (1.0 + (pMods.spellPowerPct or 0)) + (pMods.spellPowerFlat or 0)
+    local sp = math.max(baseSp, baseAp * 0.5)
 
-    local baseSp = s.spellDamage or s.attackPower or 2000
-    local sp = baseSp * (1.0 + (pMods.spellPowerPct or 0)) + (pMods.spellPowerFlat or 0)
     local critPct = (s.spellCrit or s.meleeCrit or 35.0) + (pMods.critChance or 0)
     local hastePct = (s.spellHaste or s.meleeHaste or 25.0) + (pMods.hastePct or 0)
     local hasteMult = 1.0 + (hastePct / 100)
     local critMult = (1.5 + (critPct / 100) * 1.04) * (1.0 + (pMods.critMultiplier or 0))
 
-    local fireMod = 1.0 + ((pMods.schoolDamage and pMods.schoolDamage["Fire"]) or 0) + ((pMods.schoolDamage and pMods.schoolDamage["All"]) or 0)
-    local lbMod = fireMod * (1.0 + ((pMods.spellDamage and pMods.spellDamage["Living Bomb"]) or 0))
-    local fbMod = fireMod * (1.0 + ((pMods.spellDamage and pMods.spellDamage["Fireball"]) or 0))
-    local pyroMod = fireMod * (1.0 + ((pMods.spellDamage and pMods.spellDamage["Pyroblast"]) or 0))
-    local fsMod = fireMod * (1.0 + ((pMods.spellDamage and pMods.spellDamage["Flamestrike"]) or 0))
+    local allMod = 1.0 + ((pMods.schoolDamage and pMods.schoolDamage["All"]) or 0)
+    local singleDps = (baseAp * 1.8 + sp * 1.5) * hasteMult * (1 + critPct / 100) * 1.15 * allMod
+    local cleaveDps = singleDps * 2.6 * (1.0 + ((pMods.aoeDamagePct or 0) * 0.4))
+    local aoeDps = singleDps * 4.8 * (1.0 + (pMods.aoeDamagePct or 0))
 
-    local singleDps = 0
-    local cleaveDps = 0
-    local aoeDps = 0
-    local speedRating = "1.00s GCD Floor | 41yd Range (98.5% Uptime)"
-    local survivabilityRating = "High (-20% Threat, 92% Pushback Immunity, Incanter Shield)"
+    -- Specialization / Class Custom Adjustments
+    if pClass == "DEATHKNIGHT" then
+        local shadowMod = allMod * (1.0 + ((pMods.schoolDamage and pMods.schoolDamage["Shadow"]) or 0))
+        local physMod = allMod * (1.0 + ((pMods.schoolDamage and pMods.schoolDamage["Physical"]) or 0))
+        local frostMod = allMod * (1.0 + ((pMods.schoolDamage and pMods.schoolDamage["Frost"]) or 0))
 
-    if pClass == "MAGE" and (specName == "Fire" or specName == "Active Spec") then
-        -- 1. Single Target Boss Sim (The Lich King 25H - 180s Simulation Window)
-        -- Living Bomb (DoT 80% SP coeff + Explosion 40% SP coeff every 12s, 100% optimal uptime, scales with parsed perks)
+        local ssMod = physMod * shadowMod * (1.0 + ((pMods.spellDamage and pMods.spellDamage["Scourge Strike"]) or 0))
+        local hsMod = physMod * (1.0 + ((pMods.spellDamage and pMods.spellDamage["Heart Strike"]) or 0))
+        local dsMod = physMod * (1.0 + ((pMods.spellDamage and pMods.spellDamage["Death Strike"]) or 0))
+        local fsMod = frostMod * (1.0 + ((pMods.spellDamage and pMods.spellDamage["Frost Strike"]) or 0))
+        local dcMod = shadowMod * (1.0 + ((pMods.spellDamage and pMods.spellDamage["Death Coil"]) or 0))
+        local dndMod = shadowMod * (1.0 + ((pMods.spellDamage and pMods.spellDamage["Death and Decay"]) or 0))
+        local bbMod = shadowMod * (1.0 + ((pMods.spellDamage and pMods.spellDamage["Blood Boil"]) or 0))
+        local diseaseMod = shadowMod * (1.0 + (pMods.dotDurationPct or 0)) * (1.0 + ((pMods.spellDamage and (pMods.spellDamage["Frost Fever"] or pMods.spellDamage["Blood Plague"])) or 0))
+
+        local diseaseDps = (sp * 0.75 + baseAp * 0.25) * 1.25 * diseaseMod
+        local ssDps = (baseAp * 1.65 + sp * 0.85) * (1.0 / math.max(1.0, 1.5 / hasteMult)) * critMult * ssMod
+        local dcDps = (sp * 1.35 + baseAp * 0.45) * 0.75 * critMult * dcMod
+        local petDps = 1800 * shadowMod * (1.0 + (pMods.hastePct or 0) / 100)
+        local gargoyleDps = 3800 * (30.0 / 180.0) * shadowMod
+
+        singleDps = (diseaseDps + ssDps + dcDps + petDps + gargoyleDps) * 1.05
+        cleaveDps = (diseaseDps * 3.0) + (ssDps * 1.35) + dcDps + petDps + (dndMod * sp * 1.4 * 3.0 / 10.0)
+        local bbDps = (sp * 0.85 + baseAp * 0.35) * 6.0 * bbMod
+        local dnDps = (sp * 1.6 + baseAp * 0.65) * 6.0 * dndMod / 10.0
+        aoeDps = (diseaseDps * 6.0) + bbDps + dnDps + petDps
+    elseif pClass == "MAGE" then
+        local fireMod = allMod * (1.0 + ((pMods.schoolDamage and pMods.schoolDamage["Fire"]) or 0))
+        local lbMod = fireMod * (1.0 + ((pMods.spellDamage and pMods.spellDamage["Living Bomb"]) or 0))
+        local fbMod = fireMod * (1.0 + ((pMods.spellDamage and pMods.spellDamage["Fireball"]) or 0))
+        local pyroMod = fireMod * (1.0 + ((pMods.spellDamage and pMods.spellDamage["Pyroblast"]) or 0))
+        local fsMod = fireMod * (1.0 + ((pMods.spellDamage and pMods.spellDamage["Flamestrike"]) or 0))
+
         local lbDps = ((1380 + sp * 0.80) + (690 + sp * 0.40)) / 12.0 * critMult * 1.10 * lbMod
-        -- Fireball (Base ~1020 + 1.15 SP coeff per 2.3s cast with Imp Fireball, scaled by parsed perks)
         local fbCast = math.max(1.0, 3.0 / hasteMult)
-        local fbDmg = (1020 + sp * 1.15) * critMult * 1.10 * 1.12 * fbMod -- 1.12 TTW snared multiplier
-        local fbDps = fbDmg / fbCast
-        -- Hot Streak Instant Pyroblast (Proc ~every 4.5s with high crit, 100% immediate consumption, scaled by parsed perks)
-        local pyroDmg = (1370 + sp * 1.15) * critMult * 1.10 * 1.12 * pyroMod
-        local pyroDps = pyroDmg / 4.5
-        
-        -- Cooldown & Execute Cycle Modeling:
-        -- Combustion (2x in 180s: +50% Crit multiplier burst) + Mirror Image (30s duration) + On-Use Trinket
+        local fbDps = (1020 + sp * 1.15) * critMult * 1.10 * 1.12 * fbMod / fbCast
+        local pyroDps = (1370 + sp * 1.15) * critMult * 1.10 * 1.12 * pyroMod / 4.5
         local cooldownBurstDps = (pyroDps * 0.45 + fbDps * 0.30) * (30.0 / 180.0)
         local mirrorImageDps = 1850 * (30.0 / 180.0) * fireMod
-        -- Molten Fury Execute Phase (+12% damage over final 35% boss HP)
-        local executeMultiplier = 1.0 + (0.12 * 0.35)
-
-        singleDps = (lbDps + fbDps + pyroDps + cooldownBurstDps + mirrorImageDps) * executeMultiplier
-
-        -- 2. Cleave Sim (Level 82 Elite Mobs - 3 Targets - 45s Window)
-        -- 3x Living Bombs ticking simultaneously + 3x end explosions + Hot Streak acceleration
-        local cleaveLbDps = lbDps * 3.0
-        local cleavePyroDps = pyroDps * 1.65
-        local cleaveCooldowns = (cooldownBurstDps + mirrorImageDps) * 1.35
-        cleaveDps = cleaveLbDps + fbDps + cleavePyroDps + cleaveCooldowns
-
-        -- 3. AOE Sim (6+ Targets - 25s Trash Pack Window)
-        -- Dual Flamestrike Rank 9 + Rank 8 ground ticks + Dragon's Breath + Blast Wave + Firestarter instant weaves
+        singleDps = (lbDps + fbDps + pyroDps + cooldownBurstDps + mirrorImageDps) * 1.042
+        cleaveDps = (lbDps * 3.0) + fbDps + (pyroDps * 1.65) + (cooldownBurstDps + mirrorImageDps) * 1.35
         local fsDps = ((973 + sp * 0.2357) + (780 + sp * 0.48)) / 2.0 * 6.0 * (critMult * 0.9) * fsMod
         local dbDps = (1190 + sp * 0.193) / 10.0 * 6.0 * critMult * fireMod
         local bwDps = (1140 + sp * 0.193) / 15.0 * 6.0 * critMult * fireMod
-        local firestarterInstantDps = fsDps * 0.35
-        aoeDps = (fsDps + dbDps + bwDps + firestarterInstantDps + (lbDps * 2.5)) * (1.0 + (pMods.aoeDamagePct or 0))
+        aoeDps = (fsDps + dbDps + bwDps + (lbDps * 2.5)) * (1.0 + (pMods.aoeDamagePct or 0))
+    end
 
-        -- Active Tanking Shield & Armor Maintenance:
-        -- Modeled Ice Barrier + Warding + Mage Armor + Incanter's Absorption (+5% absorbed damage as SP)
-        local tankingShieldAbsorption = (3300 + (sp * 0.80)) * (1.0 + (pMods.shieldAbsorbPct or 0))
-        local armorVal = (s.armor or 8500) * (1.0 + (pMods.armorPct or 0))
-        local armorDr = armorVal / (armorVal + 15232.5)
-        local totalDr = math.min(0.85, (1.0 - (1.0 - armorDr) * (1.0 - (pMods.damageReductionPct or 0))))
-        local tankingEHP = math.floor((s.health or 25000) / math.max(0.1, 1.0 - totalDr))
+    -- EHP Calculation
+    local baseHp = s.health or 26000
+    local armorVal = (s.armor or 12500) * (1.0 + (pMods.armorPct or 0))
+    local armorDr = armorVal / (armorVal + 15232.5)
+    local totalDr = math.min(0.85, 1.0 - ((1.0 - armorDr) * (1.0 - (pMods.damageReductionPct or 0))))
+    local ehp = math.floor(baseHp / math.max(0.1, 1.0 - totalDr))
 
-        local totalRange = 35 + 6 + (pMods.rangeBonus or 0)
-        local threatPct = math.floor((0.20 + (pMods.threatReductionPct or 0)) * 100)
-        speedRating = string.format("%.2fs GCD Floor | %dyd Range (98.8%% Tanking Uptime)", math.max(1.0, 1.5 / hasteMult), totalRange)
-        survivabilityRating = string.format("Active Tanking: %d EHP | %d Absorb Shield | -%d%% Threat", tankingEHP, math.floor(tankingShieldAbsorption), threatPct)
-    else
-        -- Generalized Multi-Class Sim Model with Active Tanking & Parsed Perk Factors
-        local allMod = 1.0 + ((pMods.schoolDamage and pMods.schoolDamage["All"]) or 0)
-        singleDps = sp * 2.5 * hasteMult * (1 + critPct / 100) * 1.15 * allMod
-        cleaveDps = singleDps * 2.6
-        aoeDps = singleDps * 4.8 * (1.0 + (pMods.aoeDamagePct or 0))
-        local totalRange = 30 + (pMods.rangeBonus or 0)
-        local threatPct = math.floor((0.15 + (pMods.threatReductionPct or 0)) * 100)
-        local tankingEHP = math.floor((s.health or 25000) / math.max(0.1, 1.0 - (0.45 + (pMods.damageReductionPct or 0))))
-        speedRating = string.format("%.2fs GCD Floor | %dyd Range (95%% Tanking Uptime)", math.max(1.0, 1.5 / hasteMult), totalRange)
-        survivabilityRating = string.format("Active Tanking: %d EHP | -%d%% Threat", tankingEHP, threatPct)
+    -- Overall Score Calculation based on Group Role & Approach
+    local score = 0
+    local normEhp = ehp / 4.0
+
+    if role == "DPS" then
+        if approach == "ST Damage" then
+            score = 0.65 * singleDps + 0.20 * cleaveDps + 0.10 * aoeDps + 0.05 * normEhp
+        elseif approach == "AOE Damage" then
+            score = 0.15 * singleDps + 0.35 * cleaveDps + 0.45 * aoeDps + 0.05 * normEhp
+        elseif approach == "Survival/PVP" then
+            score = 0.30 * singleDps + 0.15 * cleaveDps + 0.15 * aoeDps + 0.40 * normEhp
+        else -- Balanced
+            score = 0.40 * singleDps + 0.30 * cleaveDps + 0.20 * aoeDps + 0.10 * normEhp
+        end
+    elseif role == "Tank" then
+        if approach == "Survival/PVP" then
+            score = 0.10 * singleDps + 0.05 * cleaveDps + 0.05 * aoeDps + 0.80 * normEhp
+        elseif approach == "AOE Damage" then
+            score = 0.15 * singleDps + 0.25 * cleaveDps + 0.30 * aoeDps + 0.30 * normEhp
+        elseif approach == "ST Damage" then
+            score = 0.35 * singleDps + 0.10 * cleaveDps + 0.05 * aoeDps + 0.50 * normEhp
+        else -- Balanced
+            score = 0.25 * singleDps + 0.15 * cleaveDps + 0.15 * aoeDps + 0.45 * normEhp
+        end
+    elseif role == "Healer" then
+        if approach == "Survival/PVP" then
+            score = 0.15 * singleDps + 0.10 * cleaveDps + 0.05 * aoeDps + 0.70 * normEhp
+        else
+            score = 0.30 * singleDps + 0.20 * cleaveDps + 0.15 * aoeDps + 0.35 * normEhp
+        end
+    else -- Solo
+        score = 0.35 * singleDps + 0.25 * cleaveDps + 0.20 * aoeDps + 0.20 * normEhp
     end
 
     return {
         single = math.floor(singleDps),
         cleave = math.floor(cleaveDps),
         aoe = math.floor(aoeDps),
-        speedRating = speedRating,
-        survivabilityRating = survivabilityRating
+        ehp = math.floor(ehp),
+        score = math.floor(score)
+    }
+end
+
+function FC:RunSimulationBenchmarks(specName)
+    specName = specName or (self.GetActiveSpecName and self:GetActiveSpecName()) or "Fire"
+    local sim = self:CalculateSimValues()
+    local s = self.state.player and self.state.player.stats or {}
+    local hastePct = (s.spellHaste or 25.0)
+    local hasteMult = 1.0 + (hastePct / 100)
+    return {
+        single = sim.single,
+        cleave = sim.cleave,
+        aoe = sim.aoe,
+        ehp = sim.ehp,
+        score = sim.score,
+        speedRating = string.format("%.2fs GCD Floor | %dyd Range", math.max(1.0, 1.5 / hasteMult), 35),
+        survivabilityRating = string.format("Active: %d EHP", sim.ehp)
     }
 end
 

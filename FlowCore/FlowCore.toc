@@ -3,7 +3,7 @@
 ## Notes: Real-time spell recommendation & 10-second predictive timeline engine for WoW 3.3.5a (Synastria / ChromieCraft)
 ## Author: FlowCore Team
 ## Version: 1.3.0
-## SavedVariables: FlowCoreDB
+## SavedVariables: FlowCoreDB, FlowCoreExportDB
 
 # =====================================================
 # CORE BOOTSTRAP (must always load first)
@@ -46,6 +46,7 @@ Intelligence.lua
 Prediction.lua
 PredictiveWindow.lua
 Timeline.lua
+PerksData.lua
 WoWExt.lua
 Strategy.lua
 

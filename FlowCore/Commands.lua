@@ -145,6 +145,12 @@ SlashCmdList["FLOWCORE"] = function(msg)
         if FC.ToggleConfigUI then
             FC:ToggleConfigUI()
         end
+    elseif cmd == "export" or cmd == "csv" then
+        if FC.ExportPerksToCSV then
+            FC:ExportPerksToCSV()
+        else
+            FC:Print("Perk CSV export not available.")
+        end
     elseif cmd == "minimap" or cmd == "mm" or cmd == "map" then
         FC.db.showMinimapButton = not FC.db.showMinimapButton
         if FC.UpdateMinimapButtonVisibility then FC:UpdateMinimapButtonVisibility() end
@@ -734,9 +740,9 @@ SlashCmdList["FLOWCORE"] = function(msg)
     elseif cmd == "perks" then
         local ext = FC.extState or {}
         local catCounts = ext.activePerkCounts or {}
-        local setName = ext.activeClassSet or (FC.db and FC.db.synastriaClassSet) or "None"
+        local setName = ext.activeClassSet or "None"
         local setDef = FC.SYNASTRIA_CLASS_SETS[setName]
-        local setCount = ext.classSetCount or (FC.db and FC.db.synastriaClassSetCount) or 5
+        local setCount = ext.classSetCount or 0
 
         FC:Print("=== SYNASTRIA NATIVE PERKS & SET BONUSES ===")
         FC:Print(string.format("Limits (Max 5): |cffff6666Off: %d/5|r | |cff6666ffDef: %d/5|r | |cff44ff44Sup: %d/5|r | |cffdddd44Util: %d/5|r | |cffff88ffClass: %d/5|r | |cff888888Misc: %d|r",
@@ -749,7 +755,9 @@ SlashCmdList["FLOWCORE"] = function(msg)
         ))
 
         if setDef then
-            FC:Print(string.format("|cffffd700Active Class Set:|r %s (%d/5 Perks) | 4pc: %s", setDef.name, setCount, (setDef.fourPiece or "None")))
+            local isBonusActive = (setCount >= 4)
+            local statusCol = isBonusActive and "|cff55ff55[4pc ACTIVE]|r" or "|cff888888[4pc INACTIVE - Requires 4/5]|r"
+            FC:Print(string.format("|cffffd700Active Class Set:|r %s (%d/5 Perks) %s | 4pc: %s", setDef.name, setCount, statusCol, (setDef.fourPiece or "None")))
         end
 
         local categoriesOrder = { "Class", "Offensive", "Defensive", "Support", "Utility", "Misc" }

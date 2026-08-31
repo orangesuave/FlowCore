@@ -8,7 +8,7 @@ FC.selectedConfigSpells = FC.selectedConfigSpells or {}
 -- CONFIG WINDOW FRAME (FlowCoreConfigFrame)
 -- =====================================================
 local configFrame = CreateFrame("Frame", "FlowCoreConfigFrame", UIParent)
-configFrame:SetSize(560, 580)
+configFrame:SetSize(720, 580)
 configFrame:SetPoint("CENTER", UIParent, "CENTER", 0, 20)
 configFrame:SetMovable(true)
 configFrame:EnableMouse(true)
@@ -65,8 +65,8 @@ end
 
 local function CreateTab(name, index)
     local tab = CreateFrame("Button", "FlowCoreConfigTab" .. index, configFrame)
-    tab:SetSize(124, 26)
-    tab:SetPoint("TOPLEFT", configFrame, "TOPLEFT", 12 + (index - 1) * 130, -36)
+    tab:SetSize(166, 26)
+    tab:SetPoint("TOPLEFT", configFrame, "TOPLEFT", 12 + (index - 1) * 174, -36)
     tab:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8X8",
         edgeFile = "Interface\\Buttons\\WHITE8X8",
@@ -807,36 +807,66 @@ end)
 local perkTopPanel = CreateFrame("Frame", nil, perksContent)
 perkTopPanel:SetPoint("TOPLEFT", perksContent, "TOPLEFT", 0, 0)
 perkTopPanel:SetPoint("TOPRIGHT", perksContent, "TOPRIGHT", 0, 0)
-perkTopPanel:SetHeight(160)
+perkTopPanel:SetHeight(180)
 
 local perkHeader = perkTopPanel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 perkHeader:SetPoint("TOPLEFT", perkTopPanel, "TOPLEFT", 8, -4)
 perkHeader:SetText("|cffff88ffSynastria Class Perk Set Bonus Configuration:|r")
 
-local viewPerksBtn = CreateFrame("Button", nil, perkTopPanel, "UIPanelButtonTemplate")
-viewPerksBtn:SetSize(180, 24)
-viewPerksBtn:SetPoint("TOPRIGHT", perkTopPanel, "TOPRIGHT", -10, -4)
-viewPerksBtn:SetText("Open Perk Window (80100)")
-viewPerksBtn:SetScript("OnClick", function()
-    if FC.OpenSynastriaPerkWindow then FC:OpenSynastriaPerkWindow() end
+local exportPerksBtn = CreateFrame("Button", "FlowCoreExportPerksBtn", perkTopPanel, "UIPanelButtonTemplate")
+exportPerksBtn:SetSize(90, 22)
+exportPerksBtn:SetPoint("TOPRIGHT", perkTopPanel, "TOPRIGHT", -10, -4)
+exportPerksBtn:SetText("Export CSV")
+exportPerksBtn:SetScript("OnClick", function()
+    if FC.ExportPerksToCSV then
+        FC:ExportPerksToCSV()
+    end
 end)
+exportPerksBtn:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:ClearLines()
+    GameTooltip:AddLine("Export Perks to CSV", 1, 0.82, 0)
+    GameTooltip:AddLine("Exports all discovered perks with IDs, categories, names, assigned classes, sets, and descriptions into CSV format saved in SavedVariables and opens a copyable clipboard window.", 1, 1, 1, true)
+    GameTooltip:Show()
+end)
+exportPerksBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+local scanPerksBtn = CreateFrame("Button", "FlowCoreScanPerksBtn", perkTopPanel, "UIPanelButtonTemplate")
+scanPerksBtn:SetSize(155, 22)
+scanPerksBtn:SetPoint("RIGHT", exportPerksBtn, "LEFT", -6, 0)
+scanPerksBtn:SetText("Scan / Cache All Perks")
+scanPerksBtn:SetScript("OnClick", function()
+    if FC.ScanAndCacheAllPerks then
+        FC:ScanAndCacheAllPerks()
+    elseif FC.RefreshExtState then
+        FC:RefreshExtState()
+        FC:RefreshConfigPerksList()
+    end
+end)
+scanPerksBtn:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:ClearLines()
+    GameTooltip:AddLine("Scan & Cache Synastria Perks", 1, 0.82, 0)
+    GameTooltip:AddLine("Queries native server perk tables, cleans placeholders ($0d, $1d, etc.), builds local calculation caches, and refreshes the perks database for high-precision simulation.", 1, 1, 1, true)
+    GameTooltip:Show()
+end)
+scanPerksBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
 local setBonusText = perkTopPanel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-setBonusText:SetPoint("TOPLEFT", perkTopPanel, "TOPLEFT", 10, -32)
-setBonusText:SetWidth(500)
+setBonusText:SetWidth(680)
 setBonusText:SetJustifyH("LEFT")
 
 local function UpdateClassSetDisplay()
-    local setName = FC.db and FC.db.synastriaClassSet or "None"
-    local setDef = FC.SYNASTRIA_CLASS_SETS[setName]
-    local count = FC.db and FC.db.synastriaClassSetCount or 5
+    local setName = FC.db and FC.db.synastriaClassSet or (FC.extState and FC.extState.activeClassSet) or "None"
+    local setDef = (FC.discoveredPerkSets and FC.discoveredPerkSets[setName]) or FC.SYNASTRIA_CLASS_SETS[setName]
+    local count = (FC.db and FC.db.synastriaClassSetCount) or (FC.extState and FC.extState.classSetCount) or 5
 
     if setDef then
         setBonusText:SetText(string.format(
             "|cffffd700Active Set:|r |cffffffff%s|r (%d/5 Perks Selected)\n" ..
             "|cff55ff55[2-Perk Bonus (Active)]|r: %s\n" ..
             "|cff55ff55[4-Perk Bonus (%s)]|r: %s",
-            setDef.name,
+            setDef.name or setName,
             count,
             setDef.twoPiece or "None",
             count >= 4 and "Active" or "Inactive",
@@ -847,151 +877,634 @@ local function UpdateClassSetDisplay()
     end
 end
 
-local setBtnFire = CreateFrame("Button", nil, perkTopPanel, "UIPanelButtonTemplate")
-setBtnFire:SetSize(110, 22)
-setBtnFire:SetPoint("TOPLEFT", perkTopPanel, "TOPLEFT", 10, -104)
-setBtnFire:SetText("Fire Mage")
-setBtnFire:SetScript("OnClick", function()
-    FC.db.synastriaClassSet = "Fire Mage"
-    FC.db.synastriaClassSetCount = 5
-    UpdateClassSetDisplay()
-    FC:Print("Synastria Class Set set to |cffff88ffFire Mage|r (4pc bonus active: +125% Fire Dmg, -30% Dmg taken from Ignited mobs).")
+-- Filter & Search State (Default to Active + My Class Only for instant load performance)
+local perkFilterMode = "active"
+local perkMyClassOnly = true
+local perkSearchText = ""
+
+local searchBoxPerks = CreateFrame("EditBox", "FlowCorePerksSearchBox", perkTopPanel, "InputBoxTemplate")
+searchBoxPerks:SetSize(130, 20)
+searchBoxPerks:SetAutoFocus(false)
+searchBoxPerks:SetText("")
+
+local searchPlaceholder = searchBoxPerks:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+searchPlaceholder:SetPoint("LEFT", searchBoxPerks, "LEFT", 4, 0)
+searchPlaceholder:SetText("Search perks...")
+
+searchBoxPerks:SetScript("OnTextChanged", function(self)
+    local text = string.lower(self:GetText() or "")
+    if text == "" then
+        searchPlaceholder:Show()
+    else
+        searchPlaceholder:Hide()
+    end
+    perkSearchText = text
+    FC:RefreshConfigPerksList()
 end)
 
-local setBtnFrost = CreateFrame("Button", nil, perkTopPanel, "UIPanelButtonTemplate")
-setBtnFrost:SetSize(110, 22)
-setBtnFrost:SetPoint("LEFT", setBtnFire, "RIGHT", 6, 0)
-setBtnFrost:SetText("Frost Mage")
-setBtnFrost:SetScript("OnClick", function()
-    FC.db.synastriaClassSet = "Frost Mage"
-    FC.db.synastriaClassSetCount = 5
-    UpdateClassSetDisplay()
-    FC:Print("Synastria Class Set set to |cffff88ffFrost Mage|r (4pc bonus active).")
+local btnFilterAll = CreateFrame("Button", "FlowCorePerkFilterAll", perkTopPanel, "UIPanelButtonTemplate")
+btnFilterAll:SetSize(45, 20)
+btnFilterAll:SetPoint("LEFT", searchBoxPerks, "RIGHT", 6, 0)
+btnFilterAll:SetText("All")
+
+local btnFilterActive = CreateFrame("Button", "FlowCorePerkFilterActive", perkTopPanel, "UIPanelButtonTemplate")
+btnFilterActive:SetSize(55, 20)
+btnFilterActive:SetPoint("LEFT", btnFilterAll, "RIGHT", 4, 0)
+btnFilterActive:SetText("|cff55ff55Active|r")
+
+local btnFilterInactive = CreateFrame("Button", "FlowCorePerkFilterInactive", perkTopPanel, "UIPanelButtonTemplate")
+btnFilterInactive:SetSize(65, 20)
+btnFilterInactive:SetPoint("LEFT", btnFilterActive, "RIGHT", 4, 0)
+btnFilterInactive:SetText("Inactive")
+
+local function UpdateFilterButtonStates()
+    btnFilterAll:SetText(perkFilterMode == "all" and "|cff55ff55All|r" or "All")
+    btnFilterActive:SetText(perkFilterMode == "active" and "|cff55ff55Active|r" or "Active")
+    btnFilterInactive:SetText(perkFilterMode == "inactive" and "|cff55ff55Inactive|r" or "Inactive")
+end
+
+btnFilterAll:SetScript("OnClick", function()
+    perkFilterMode = "all"
+    UpdateFilterButtonStates()
+    FC:RefreshConfigPerksList()
 end)
 
-local setBtnArcane = CreateFrame("Button", nil, perkTopPanel, "UIPanelButtonTemplate")
-setBtnArcane:SetSize(110, 22)
-setBtnArcane:SetPoint("LEFT", setBtnFrost, "RIGHT", 6, 0)
-setBtnArcane:SetText("Arcane Mage")
-setBtnArcane:SetScript("OnClick", function()
-    FC.db.synastriaClassSet = "Arcane Mage"
-    FC.db.synastriaClassSetCount = 5
-    UpdateClassSetDisplay()
-    FC:Print("Synastria Class Set set to |cffff88ffArcane Mage|r (4pc bonus active).")
+btnFilterActive:SetScript("OnClick", function()
+    perkFilterMode = "active"
+    UpdateFilterButtonStates()
+    FC:RefreshConfigPerksList()
+end)
+
+btnFilterInactive:SetScript("OnClick", function()
+    perkFilterMode = "inactive"
+    UpdateFilterButtonStates()
+    FC:RefreshConfigPerksList()
+end)
+
+local cbMyClassOnly = CreateFrame("CheckButton", "FlowCorePerkMyClassOnlyCB", perkTopPanel, "UICheckButtonTemplate")
+cbMyClassOnly:SetSize(20, 20)
+cbMyClassOnly:SetPoint("LEFT", btnFilterInactive, "RIGHT", 8, 0)
+cbMyClassOnly:SetChecked(true)
+
+local cbMyClassText = cbMyClassOnly:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+cbMyClassText:SetPoint("LEFT", cbMyClassOnly, "RIGHT", 2, 0)
+cbMyClassText:SetText("My Class Only")
+
+cbMyClassOnly:SetScript("OnClick", function(self)
+    perkMyClassOnly = (self:GetChecked() == 1 or self:GetChecked() == true)
+    FC:RefreshConfigPerksList()
 end)
 
 local setRules = perkTopPanel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-setRules:SetPoint("TOPLEFT", perkTopPanel, "TOPLEFT", 10, -134)
-setRules:SetText("|cff00ccffPerk Rules:|r Max 5 perks per category (Offensive, Defensive, Support, Utility, Class).")
+setRules:SetText("|cff00ccffPerk Rules:|r Max 5 perks per category. Sim columns reflect marginal value when replacing lowest active perk.")
+
+-- Perk Column Sort State
+local perkSortColumn = "name"
+local perkSortAsc = true
+
+local perkColHeaders = {}
+
+local function UpdateColHeaderVisuals()
+    for colKey, btn in pairs(perkColHeaders) do
+        local baseLabel = btn.baseLabel or ""
+        if perkSortColumn == colKey then
+            local arrow = perkSortAsc and "|cff55ff55▲|r" or "|cff55ff55▼|r"
+            btn.text:SetText(string.format("|cffffffff%s|r %s", baseLabel, arrow))
+        else
+            btn.text:SetText(string.format("|cffffd700%s|r", baseLabel))
+        end
+    end
+end
+
+-- Column Headers Bar (Pinned & Sortable)
+local perkColHeader = CreateFrame("Frame", "FlowCorePerkColHeader", perkTopPanel)
+perkColHeader:SetSize(660, 20)
+local colBg = perkColHeader:CreateTexture(nil, "BACKGROUND")
+colBg:SetAllPoints(perkColHeader)
+colBg:SetTexture(0.08, 0.10, 0.16, 0.85)
+
+local function CreateColHeaderButton(x, width, align, labelText, colKey, defaultAsc)
+    local btn = CreateFrame("Button", "FlowCorePerkColHdr_" .. colKey, perkColHeader)
+    btn:SetPoint("LEFT", perkColHeader, "LEFT", x, 0)
+    btn:SetSize(width, 20)
+    btn.baseLabel = labelText
+    btn.colKey = colKey
+
+    local txt = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    txt:SetPoint("LEFT", btn, "LEFT", 0, 0)
+    txt:SetPoint("RIGHT", btn, "RIGHT", 0, 0)
+    txt:SetJustifyH(align)
+    btn.text = txt
+
+    btn:SetScript("OnClick", function()
+        if perkSortColumn == colKey then
+            perkSortAsc = not perkSortAsc
+        else
+            perkSortColumn = colKey
+            perkSortAsc = (defaultAsc ~= nil) and defaultAsc or false
+        end
+        UpdateColHeaderVisuals()
+        FC:RefreshConfigPerksList()
+    end)
+
+    btn:SetScript("OnEnter", function(self)
+        self.text:SetTextColor(1, 1, 1)
+    end)
+    btn:SetScript("OnLeave", function(self)
+        UpdateColHeaderVisuals()
+    end)
+
+    perkColHeaders[colKey] = btn
+    return btn
+end
+
+CreateColHeaderButton(32, 175, "LEFT", "Perk Name", "name", true)
+CreateColHeaderButton(215, 75, "RIGHT", "25H LK", "single", false)
+CreateColHeaderButton(295, 75, "RIGHT", "3+ Cleave", "cleave", false)
+CreateColHeaderButton(375, 75, "RIGHT", "6+ AoE", "aoe", false)
+CreateColHeaderButton(455, 65, "RIGHT", "EHP", "ehp", false)
+CreateColHeaderButton(525, 65, "RIGHT", "Score", "score", false)
+CreateColHeaderButton(595, 65, "RIGHT", "Status", "status", true)
+UpdateColHeaderVisuals()
 
 local perkScrollFrame = CreateFrame("ScrollFrame", "FlowCorePerksScrollFrame", perksContent, "UIPanelScrollFrameTemplate")
-perkScrollFrame:SetPoint("TOPLEFT", perksContent, "TOPLEFT", 0, -165)
 perkScrollFrame:SetPoint("BOTTOMRIGHT", perksContent, "BOTTOMRIGHT", -26, 0)
 
 local perkScrollChild = CreateFrame("Frame", nil, perkScrollFrame)
-perkScrollChild:SetSize(490, 10)
+perkScrollChild:SetSize(660, 10)
 perkScrollFrame:SetScrollChild(perkScrollChild)
 
-local perkRows = {}
+local classSetButtons = {}
+local function CreateDynamicClassSetButtons()
+    for _, btn in ipairs(classSetButtons) do btn:Hide() end
+    local pClass = FC.playerClass or (UnitClass and select(2, UnitClass("player"))) or "DEATHKNIGHT"
 
-function FC:RefreshConfigPerksList()
-    UpdateClassSetDisplay()
-    for _, row in ipairs(perkRows) do row:Hide() end
+    local matchingSets = {}
+    local seen = {}
 
-    local rowIndex = 0
-    for _, action in ipairs(FC.actions or {}) do
-        if action.isSynastriaPerk then
-            local aName = action.name or "Perk"
-            rowIndex = rowIndex + 1
-            local row = perkRows[rowIndex]
-
-            if not row then
-                row = CreateFrame("Frame", "FlowCorePerkRow_" .. rowIndex, perkScrollChild)
-                row:SetSize(490, ROW_HEIGHT)
-
-                local rowBg = row:CreateTexture(nil, "BACKGROUND")
-                rowBg:SetAllPoints(row)
-                rowBg:SetTexture(0.2, 0.1, 0.25, 0.5)
-                row.bg = rowBg
-
-                local cb = CreateFrame("CheckButton", "FlowCorePerkRowCB_" .. rowIndex, row, "UICheckButtonTemplate")
-                cb:SetSize(22, 22)
-                cb:SetPoint("LEFT", row, "LEFT", 4, 0)
-                row.cb = cb
-
-                local icon = row:CreateTexture(nil, "ARTWORK")
-                icon:SetSize(24, 24)
-                icon:SetPoint("LEFT", cb, "RIGHT", 4, 0)
-                icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-                row.icon = icon
-
-                local nameText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-                nameText:SetPoint("LEFT", icon, "RIGHT", 6, 0)
-                nameText:SetWidth(190)
-                nameText:SetJustifyH("LEFT")
-                row.nameText = nameText
-
-                local prioText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-                prioText:SetPoint("LEFT", nameText, "RIGHT", 6, 0)
-                prioText:SetWidth(70)
-                row.prioText = prioText
-
-                local minusBtn = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-                minusBtn:SetSize(22, 20)
-                minusBtn:SetPoint("LEFT", prioText, "RIGHT", 4, 0)
-                minusBtn:SetText("-")
-                row.minusBtn = minusBtn
-
-                local plusBtn = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-                plusBtn:SetSize(22, 20)
-                plusBtn:SetPoint("LEFT", minusBtn, "RIGHT", 2, 0)
-                plusBtn:SetText("+")
-                row.plusBtn = plusBtn
-
-                perkRows[rowIndex] = row
+    -- 1. Sets discovered dynamically from PerkMgrSets & SynastriaCoreLib strictly for player's class
+    for sName, sDef in pairs(FC.discoveredPerkSets or {}) do
+        if type(sName) == "string" and not seen[sName] then
+            if sDef.class == pClass then
+                seen[sName] = true
+                table.insert(matchingSets, sName)
             end
-
-            row:SetPoint("TOPLEFT", perkScrollChild, "TOPLEFT", 0, - (rowIndex - 1) * (ROW_HEIGHT + 2))
-            row.action = action
-            row.icon:SetTexture(action.icon or "Interface\\Icons\\Spell_Holy_MagicalSentry")
-            row.nameText:SetText("|cffff88ff" .. aName .. "|r")
-
-            local isEnabled = true
-            local currPrio = action.priority or 0
-            if FC.db and FC.db.spellOverrides and FC.db.spellOverrides[aName] then
-                if FC.db.spellOverrides[aName].enabled ~= nil then isEnabled = FC.db.spellOverrides[aName].enabled end
-                if FC.db.spellOverrides[aName].priority ~= nil then currPrio = FC.db.spellOverrides[aName].priority end
-            end
-
-            row.cb:SetChecked(isEnabled)
-            row.prioText:SetText("Prio: " .. currPrio)
-
-            row.cb:SetScript("OnClick", function(self)
-                local checked = (self:GetChecked() == 1 or self:GetChecked() == true)
-                FC.db.spellOverrides[aName] = FC.db.spellOverrides[aName] or {}
-                FC.db.spellOverrides[aName].enabled = checked
-                FC:Print(aName .. " perk " .. (checked and "|cff55ff55ENABLED|r" or "|cffff3333DISABLED|r"))
-            end)
-
-            row.minusBtn:SetScript("OnClick", function()
-                FC.db.spellOverrides[aName] = FC.db.spellOverrides[aName] or {}
-                local newPrio = (FC.db.spellOverrides[aName].priority or action.priority or 0) - 5
-                FC.db.spellOverrides[aName].priority = newPrio
-                row.prioText:SetText("Prio: " .. newPrio)
-            end)
-
-            row.plusBtn:SetScript("OnClick", function()
-                FC.db.spellOverrides[aName] = FC.db.spellOverrides[aName] or {}
-                local newPrio = (FC.db.spellOverrides[aName].priority or action.priority or 0) + 5
-                FC.db.spellOverrides[aName].priority = newPrio
-                row.prioText:SetText("Prio: " .. newPrio)
-            end)
-
-            row:Show()
         end
     end
 
-    perkScrollChild:SetHeight(math.max(10, rowIndex * (ROW_HEIGHT + 2)))
+    -- 2. Fallback to SYNASTRIA_CLASS_SETS if no native sets discovered
+    if #matchingSets == 0 then
+        for sName, sDef in pairs(FC.SYNASTRIA_CLASS_SETS or {}) do
+            if type(sName) == "string" and not seen[sName] then
+                if sDef.class == pClass then
+                    seen[sName] = true
+                    table.insert(matchingSets, sName)
+                end
+            end
+        end
+    end
+
+    table.sort(matchingSets)
+
+    if #matchingSets == 0 then
+        table.insert(matchingSets, "Unholy Death Knight")
+    end
+
+    local curSet = FC.db and FC.db.synastriaClassSet
+    local hasValidCurSet = false
+    for _, sName in ipairs(matchingSets) do
+        if curSet == sName then
+            hasValidCurSet = true
+            break
+        end
+    end
+    if not hasValidCurSet and #matchingSets > 0 then
+        FC.db.synastriaClassSet = matchingSets[1]
+        curSet = matchingSets[1]
+    end
+
+    -- Buttons sit cleanly in Row 2 below Header
+    local buttonStartY = -30
+    for idx, sName in ipairs(matchingSets) do
+        local btn = classSetButtons[idx]
+        if not btn then
+            btn = CreateFrame("Button", "FlowCoreClassSetBtn_" .. idx, perkTopPanel, "UIPanelButtonTemplate")
+            btn:SetSize(160, 20)
+            classSetButtons[idx] = btn
+        end
+        local col = (idx - 1) % 4
+        local row = math.floor((idx - 1) / 4)
+        btn:SetPoint("TOPLEFT", perkTopPanel, "TOPLEFT", 8 + col * 168, buttonStartY - row * 22)
+        btn:SetSize(160, 20)
+
+        local isSelected = (curSet == sName)
+        btn:SetText(isSelected and ("|cff55ff55" .. sName .. "|r") or sName)
+        btn:SetScript("OnClick", function()
+            FC.db.synastriaClassSet = sName
+            FC.db.synastriaClassSetCount = 5
+            UpdateClassSetDisplay()
+            CreateDynamicClassSetButtons()
+            FC:Print(string.format("Synastria Class Set set to |cffff88ff%s|r (4pc bonus active).", sName))
+        end)
+        btn:Show()
+    end
+
+    local totalRows = math.max(1, math.ceil(#matchingSets / 4))
+    local bonusTextY = buttonStartY - (totalRows * 22) - 6
+    setBonusText:ClearAllPoints()
+    setBonusText:SetPoint("TOPLEFT", perkTopPanel, "TOPLEFT", 10, bonusTextY)
+
+    local bonusTextHeight = 76
+    local filterBarY = bonusTextY - bonusTextHeight - 6
+
+    searchBoxPerks:ClearAllPoints()
+    searchBoxPerks:SetPoint("TOPLEFT", perkTopPanel, "TOPLEFT", 15, filterBarY)
+
+    setRules:ClearAllPoints()
+    setRules:SetPoint("TOPLEFT", perkTopPanel, "TOPLEFT", 10, filterBarY - 24)
+
+    perkColHeader:ClearAllPoints()
+    perkColHeader:SetPoint("TOPLEFT", perkTopPanel, "TOPLEFT", 0, filterBarY - 44)
+
+    local topHeight = math.abs(filterBarY) + 68
+    perkTopPanel:SetHeight(topHeight)
+
+    perkScrollFrame:ClearAllPoints()
+    perkScrollFrame:SetPoint("TOPLEFT", perksContent, "TOPLEFT", 0, -topHeight - 4)
+    perkScrollFrame:SetPoint("BOTTOMRIGHT", perksContent, "BOTTOMRIGHT", -26, 0)
+end
+
+local function FormatSimNum(val)
+    val = tonumber(val) or 0
+    if val >= 100000 then
+        return string.format("%.0fk", val / 1000)
+    elseif val >= 10000 then
+        return string.format("%.1fk", val / 1000)
+    else
+        return tostring(math.floor(val))
+    end
+end
+
+local perkRows = {}
+local perkSectionHeaders = {}
+local PERK_SECTIONS = {
+    { id = "Class",     name = "Class Perks",      color = "|cffff88ff" },
+    { id = "Offensive", name = "Offensive Perks",  color = "|cffff6666" },
+    { id = "Defensive", name = "Defensive Perks",  color = "|cff6666ff" },
+    { id = "Support",   name = "Support Perks",    color = "|cff44ff44" },
+    { id = "Utility",   name = "Utility Perks",    color = "|cffdddd44" },
+    { id = "Misc",      name = "Misc / QoL Perks", color = "|cff888888" },
+}
+
+function FC:RefreshConfigPerksList()
+    UpdateClassSetDisplay()
+    CreateDynamicClassSetButtons()
+    for _, row in ipairs(perkRows) do row:Hide() end
+    for _, h in ipairs(perkSectionHeaders) do h:Hide() end
+
+    local baseSim, lowestActiveInCat, minScoreInCat, GetSwapSim = self:SimulatePerkSwapMetrics()
+
+    local ext = FC.extState or {}
+    local cats = ext.categories or {}
+    local currentY = 0
+    local headerIndex = 0
+    local rowIndex = 0
+
+    for _, sec in ipairs(PERK_SECTIONS) do
+        local rawList = cats[sec.id] or {}
+        local filteredList = {}
+
+        for _, perk in ipairs(rawList) do
+            local matches = true
+
+            -- 1. Search Query Filter
+            if perkSearchText ~= "" then
+                local pName = string.lower(perk.name or "")
+                local pDesc = string.lower(perk.description or "")
+                if not string.find(pName, perkSearchText, 1, true) and not string.find(pDesc, perkSearchText, 1, true) then
+                    matches = false
+                end
+            end
+
+            -- 2. Active / Inactive Filter
+            if matches then
+                if perkFilterMode == "active" and not perk.active then
+                    matches = false
+                elseif perkFilterMode == "inactive" and perk.active then
+                    matches = false
+                end
+            end
+
+            -- 3. My Class Only Filter
+            if matches and perkMyClassOnly then
+                if FC.IsPerkForPlayerClass and not FC:IsPerkForPlayerClass(perk) then
+                    matches = false
+                end
+            end
+
+            if matches then
+                table.insert(filteredList, perk)
+            end
+        end
+
+        if #filteredList > 0 then
+            headerIndex = headerIndex + 1
+            local header = perkSectionHeaders[headerIndex]
+            if not header then
+                header = CreateFrame("Frame", "FlowCorePerkSectionHeader_" .. headerIndex, perkScrollChild)
+                header:SetSize(660, HEADER_HEIGHT)
+                local hBg = header:CreateTexture(nil, "BACKGROUND")
+                hBg:SetAllPoints(header)
+                hBg:SetTexture(0.2, 0.25, 0.35, 0.5)
+                header.bg = hBg
+
+                local hText = header:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+                hText:SetPoint("LEFT", header, "LEFT", 8, 0)
+                header.text = hText
+                perkSectionHeaders[headerIndex] = header
+            end
+
+            local activeCount = 0
+            for _, p in ipairs(filteredList) do
+                if p.active then activeCount = activeCount + 1 end
+            end
+
+            header:SetPoint("TOPLEFT", perkScrollChild, "TOPLEFT", 0, -currentY)
+            header.text:SetText(string.format("%s=== %s (%d Active / %d Showing) ===|r", sec.color, sec.name, activeCount, #filteredList))
+            header:Show()
+            currentY = currentY + HEADER_HEIGHT + 2
+
+            -- Pre-calculate benchmark / swap values ONCE per perk for instantaneous O(1) sort comparisons
+            for _, p in ipairs(filteredList) do
+                if p.active then
+                    local sim = p._sim or baseSim
+                    p._calcVal = (perkSortColumn == "score" and (p._marginalScore or sim.score)) or sim[perkSortColumn] or 0
+                else
+                    local swap = GetSwapSim(p, sec.id)
+                    p._swapSim = swap
+                    p._baseSim = baseSim
+                    p._calcVal = swap[perkSortColumn] or 0
+                end
+            end
+
+            table.sort(filteredList, function(a, b)
+                if perkSortColumn == "status" then
+                    if a.active ~= b.active then
+                        if perkSortAsc then
+                            return a.active and not b.active
+                        else
+                            return not a.active and b.active
+                        end
+                    end
+                    return (a.name or "") < (b.name or "")
+                elseif perkSortColumn == "name" then
+                    local nameA = a.name or ""
+                    local nameB = b.name or ""
+                    if nameA ~= nameB then
+                        if perkSortAsc then
+                            return nameA < nameB
+                        else
+                            return nameA > nameB
+                        end
+                    end
+                    return (a.id or 0) < (b.id or 0)
+                else
+                    local valA = a._calcVal or 0
+                    local valB = b._calcVal or 0
+                    if valA ~= valB then
+                        if perkSortAsc then
+                            return valA < valB
+                        else
+                            return valA > valB
+                        end
+                    end
+                    return (a.name or "") < (b.name or "")
+                end
+            end)
+
+            for _, perk in ipairs(filteredList) do
+                rowIndex = rowIndex + 1
+                local row = perkRows[rowIndex]
+                local pName = perk.name or "Perk"
+
+                if not row then
+                    row = CreateFrame("Frame", "FlowCorePerkRow_" .. rowIndex, perkScrollChild)
+                    row:SetSize(660, ROW_HEIGHT)
+
+                    local rowBg = row:CreateTexture(nil, "BACKGROUND")
+                    rowBg:SetAllPoints(row)
+                    rowBg:SetTexture(0.12, 0.12, 0.12, 0.5)
+                    row.bg = rowBg
+
+                    local icon = row:CreateTexture(nil, "ARTWORK")
+                    icon:SetSize(22, 22)
+                    icon:SetPoint("LEFT", row, "LEFT", 4, 0)
+                    icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+                    row.icon = icon
+
+                    local nameText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+                    nameText:SetPoint("LEFT", icon, "RIGHT", 6, 0)
+                    nameText:SetWidth(180)
+                    nameText:SetJustifyH("LEFT")
+                    row.nameText = nameText
+
+                    local singleText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+                    singleText:SetPoint("LEFT", row, "LEFT", 215, 0)
+                    singleText:SetWidth(75)
+                    singleText:SetJustifyH("RIGHT")
+                    row.singleText = singleText
+
+                    local cleaveText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+                    cleaveText:SetPoint("LEFT", row, "LEFT", 295, 0)
+                    cleaveText:SetWidth(75)
+                    cleaveText:SetJustifyH("RIGHT")
+                    row.cleaveText = cleaveText
+
+                    local aoeText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+                    aoeText:SetPoint("LEFT", row, "LEFT", 375, 0)
+                    aoeText:SetWidth(75)
+                    aoeText:SetJustifyH("RIGHT")
+                    row.aoeText = aoeText
+
+                    local ehpText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+                    ehpText:SetPoint("LEFT", row, "LEFT", 455, 0)
+                    ehpText:SetWidth(65)
+                    ehpText:SetJustifyH("RIGHT")
+                    row.ehpText = ehpText
+
+                    local scoreText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+                    scoreText:SetPoint("LEFT", row, "LEFT", 525, 0)
+                    scoreText:SetWidth(65)
+                    scoreText:SetJustifyH("RIGHT")
+                    row.scoreText = scoreText
+
+                    local statusText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+                    statusText:SetPoint("LEFT", row, "LEFT", 595, 0)
+                    statusText:SetWidth(65)
+                    statusText:SetJustifyH("RIGHT")
+                    row.statusText = statusText
+
+                    row:EnableMouse(true)
+                    row:SetScript("OnEnter", function(self)
+                        if not self.perk then return end
+                        local p = self.perk
+                        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                        GameTooltip:ClearLines()
+
+                        -- 1. Perk Name in Gold
+                        GameTooltip:AddLine(p.name or "Perk", 1, 0.82, 0)
+
+                        -- 2. Perk Description (Formatted & Cleaned of Placeholders)
+                        local desc = p.description
+                        if not desc or desc == "" then
+                            if p.id and _G.PerkMgrPerks and _G.PerkMgrPerks[p.id] then
+                                local rawP = _G.PerkMgrPerks[p.id]
+                                desc = rawP.description or rawP.desc or rawP.tooltip or rawP.text
+                            end
+                            if (not desc or desc == "") and p.id and LibStub and LibStub("SynastriaCoreLib-1.0", true) then
+                                local coreLib = LibStub("SynastriaCoreLib-1.0", true)
+                                if coreLib and coreLib.Perks and type(coreLib.Perks.GetPerk) == "function" then
+                                    local ok, libP = pcall(coreLib.Perks.GetPerk, coreLib.Perks, p.id)
+                                    if ok and type(libP) == "table" then
+                                        desc = libP.description or libP.tooltip or libP.text
+                                    end
+                                end
+                            end
+                        end
+
+                        if desc and desc ~= "" then
+                            local formattedDesc = (FC.FormatPerkDescription and FC:FormatPerkDescription(desc, p.spellId, p.name, p.id, p)) or desc
+                            GameTooltip:AddLine(formattedDesc, 1, 1, 1, true)
+                        end
+
+                        -- 3. Perk Set Details
+                        local pSet = p.setName
+                        if not pSet and FC.discoveredPerkSets and p.id then
+                            for sName, sDef in pairs(FC.discoveredPerkSets) do
+                                if type(sName) == "string" and sDef.perks then
+                                    for _, pId in ipairs(sDef.perks) do
+                                        if pId == p.id then
+                                            pSet = sName
+                                            break
+                                        end
+                                    end
+                                end
+                                if pSet then break end
+                            end
+                        end
+
+                        if pSet then
+                            local setDef = (FC.discoveredPerkSets and FC.discoveredPerkSets[pSet]) or (FC.SYNASTRIA_CLASS_SETS and FC.SYNASTRIA_CLASS_SETS[pSet])
+                            GameTooltip:AddLine(" ")
+                            GameTooltip:AddLine("|cffffd700Perk Set: " .. pSet .. "|r", 1, 0.82, 0)
+                            if setDef then
+                                if setDef.twoPiece and setDef.twoPiece ~= "" then
+                                    GameTooltip:AddLine("|cff55ff55(2) Set Bonus:|r " .. setDef.twoPiece, 0.9, 0.9, 0.9, true)
+                                end
+                                if setDef.fourPiece and setDef.fourPiece ~= "" then
+                                    GameTooltip:AddLine("|cff55ff55(4) Set Bonus:|r " .. setDef.fourPiece, 0.9, 0.9, 0.9, true)
+                                end
+                            end
+                        end
+
+                        -- 4. Simulation & Marginal Comparison
+                        local curRole = (FC.db and FC.db.playerRole) or "DPS"
+                        local curApp = (FC.db and FC.db.combatApproach) or "Balanced"
+
+                        if p.active then
+                            local sim = p._sim or baseSim
+                            local mScore = p._marginalScore or sim.score
+                            GameTooltip:AddLine(" ")
+                            GameTooltip:AddLine(string.format("|cffffd700Active Build Simulation (%s / %s):|r", curRole, curApp), 1, 0.82, 0)
+                            GameTooltip:AddDoubleLine("• 25H Lich King:", string.format("~%s DPS", FormatSimNum(sim.single)), 0.8, 0.8, 0.8, 0.33, 1, 0.33)
+                            GameTooltip:AddDoubleLine("• 3+ Cleave:", string.format("~%s DPS", FormatSimNum(sim.cleave)), 0.8, 0.8, 0.8, 0.33, 1, 0.33)
+                            GameTooltip:AddDoubleLine("• 6+ AoE:", string.format("~%s DPS", FormatSimNum(sim.aoe)), 0.8, 0.8, 0.8, 0.33, 1, 0.33)
+                            GameTooltip:AddDoubleLine("• Effective Health (EHP):", string.format("~%s EHP", FormatSimNum(sim.ehp)), 0.8, 0.8, 0.8, 0.33, 1, 0.33)
+                            GameTooltip:AddDoubleLine("• Marginal Value Contribution:", string.format("+%s pts", FormatSimNum(mScore)), 0.8, 0.8, 0.8, 1, 0.82, 0)
+                        else
+                            local s = p._swapSim or baseSim
+                            local b = p._baseSim or baseSim
+                            local dSingle = s.single - b.single
+                            local dCleave = s.cleave - b.cleave
+                            local dAoe = s.aoe - b.aoe
+                            local dEhp = s.ehp - b.ehp
+                            local dScore = s.score - b.score
+
+                            GameTooltip:AddLine(" ")
+                            GameTooltip:AddLine(string.format("|cffffd700Marginal Swap Sim (Replaces lowest active in %s):|r", tostring(p.category)), 1, 0.82, 0)
+                            GameTooltip:AddDoubleLine("• 25H Lich King:", string.format("~%s DPS (%s%+d|r)", FormatSimNum(s.single), (dSingle > 0 and "|cff55ff55") or (dSingle == 0 and "|cffffd700") or "|cff888888", dSingle), 0.8, 0.8, 0.8, 1, 1, 1)
+                            GameTooltip:AddDoubleLine("• 3+ Cleave:", string.format("~%s DPS (%s%+d|r)", FormatSimNum(s.cleave), (dCleave > 0 and "|cff55ff55") or (dCleave == 0 and "|cffffd700") or "|cff888888", dCleave), 0.8, 0.8, 0.8, 1, 1, 1)
+                            GameTooltip:AddDoubleLine("• 6+ AoE:", string.format("~%s DPS (%s%+d|r)", FormatSimNum(s.aoe), (dAoe > 0 and "|cff55ff55") or (dAoe == 0 and "|cffffd700") or "|cff888888", dAoe), 0.8, 0.8, 0.8, 1, 1, 1)
+                            GameTooltip:AddDoubleLine("• Effective Health (EHP):", string.format("~%s EHP (%s%+d|r)", FormatSimNum(s.ehp), (dEhp > 0 and "|cff55ff55") or (dEhp == 0 and "|cffffd700") or "|cff888888", dEhp), 0.8, 0.8, 0.8, 1, 1, 1)
+                            GameTooltip:AddDoubleLine("• Projected Score (" .. curRole .. "/" .. curApp .. "):", string.format("%s pts (%s%+d|r)", FormatSimNum(s.score), (dScore > 0 and "|cff55ff55") or (dScore == 0 and "|cffffd700") or "|cff888888", dScore), 1, 0.82, 0, 1, 1, 1)
+                        end
+
+                        -- 5. Footer Details
+                        GameTooltip:AddLine(" ")
+                        GameTooltip:AddDoubleLine("Category:", tostring(p.category), 0.7, 0.7, 0.7, 0.2, 0.8, 1)
+                        if p.id and p.id > 0 then
+                            GameTooltip:AddDoubleLine("Perk ID:", tostring(p.id), 0.7, 0.7, 0.7, 0.8, 0.8, 0.8)
+                        end
+                        GameTooltip:AddDoubleLine("Status:", p.active and "|cff55ff55[ACTIVE]|r" or "|cff888888[INACTIVE]|r", 0.7, 0.7, 0.7, 1, 1, 1)
+                        GameTooltip:Show()
+                    end)
+                    row:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+                    perkRows[rowIndex] = row
+                end
+
+                row:SetPoint("TOPLEFT", perkScrollChild, "TOPLEFT", 0, -currentY)
+                row.perk = perk
+
+                local iconPath = (FC.FormatPerkIcon and FC.FormatPerkIcon(perk.icon, perk.spellId, perk.name, perk.id, perk)) or (perk.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
+                row.icon:SetTexture(iconPath)
+                row.nameText:SetText(pName)
+
+                if perk.active then
+                    local sim = perk._sim or baseSim
+                    local mScore = perk._marginalScore or 0
+                    local minCatScore = minScoreInCat[sec.id] or 0
+
+                    local singleCol = (mScore > minCatScore and "|cff55ff55") or (mScore == minCatScore and "|cffffd700") or "|cff888888"
+                    local cleaveCol = singleCol
+                    local aoeCol = singleCol
+                    local ehpCol = singleCol
+                    local scoreCol = singleCol
+
+                    row.singleText:SetText(singleCol .. FormatSimNum(sim.single) .. "|r")
+                    row.cleaveText:SetText(cleaveCol .. FormatSimNum(sim.cleave) .. "|r")
+                    row.aoeText:SetText(aoeCol .. FormatSimNum(sim.aoe) .. "|r")
+                    row.ehpText:SetText(ehpCol .. FormatSimNum(sim.ehp) .. "|r")
+                    row.scoreText:SetText(scoreCol .. FormatSimNum(mScore > 0 and mScore or sim.score) .. "|r")
+                    row.statusText:SetText("|cff55ff55[ACTIVE]|r")
+                    row.nameText:SetTextColor(1, 0.9, 0.4)
+                else
+                    local swapSim = GetSwapSim(perk, sec.id)
+                    perk._swapSim = swapSim
+                    perk._baseSim = baseSim
+
+                    local singleCol = (swapSim.single > baseSim.single and "|cff55ff55") or (swapSim.single == baseSim.single and "|cffffd700") or "|cff888888"
+                    local cleaveCol = (swapSim.cleave > baseSim.cleave and "|cff55ff55") or (swapSim.cleave == baseSim.cleave and "|cffffd700") or "|cff888888"
+                    local aoeCol = (swapSim.aoe > baseSim.aoe and "|cff55ff55") or (swapSim.aoe == baseSim.aoe and "|cffffd700") or "|cff888888"
+                    local ehpCol = (swapSim.ehp > baseSim.ehp and "|cff55ff55") or (swapSim.ehp == baseSim.ehp and "|cffffd700") or "|cff888888"
+                    local scoreCol = (swapSim.score > baseSim.score and "|cff55ff55") or (swapSim.score == baseSim.score and "|cffffd700") or "|cff888888"
+
+                    row.singleText:SetText(singleCol .. FormatSimNum(swapSim.single) .. "|r")
+                    row.cleaveText:SetText(cleaveCol .. FormatSimNum(swapSim.cleave) .. "|r")
+                    row.aoeText:SetText(aoeCol .. FormatSimNum(swapSim.aoe) .. "|r")
+                    row.ehpText:SetText(ehpCol .. FormatSimNum(swapSim.ehp) .. "|r")
+                    row.scoreText:SetText(scoreCol .. FormatSimNum(swapSim.score) .. "|r")
+                    row.statusText:SetText("|cff888888[INACTIVE]|r")
+                    row.nameText:SetTextColor(0.6, 0.6, 0.6)
+                end
+
+                row:Show()
+                currentY = currentY + ROW_HEIGHT + 2
+            end
+        end
+    end
+
+    perkScrollChild:SetHeight(math.max(10, currentY + 20))
 end
 
 -- =====================================================
