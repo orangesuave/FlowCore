@@ -1,0 +1,59 @@
+## Interface: 30300
+## Title: FlowCore
+## Notes: Real-time spell recommendation & 10-second predictive timeline engine for WoW 3.3.5a (Synastria / ChromieCraft)
+## Author: FlowCore Team
+## Version: 1.3.0
+## SavedVariables: FlowCoreDB
+
+# =====================================================
+# CORE BOOTSTRAP (must always load first)
+# =====================================================
+Core.lua
+Bootstrap.lua
+
+# =====================================================
+# COMBAT CONTEXT & DATA LAYER
+# =====================================================
+CombatContext.lua
+State.lua
+Cooldowns.lua
+Items.lua
+SpellbookScan.lua
+DamageModel.lua
+
+# =====================================================
+# ACTION REGISTRATION & DEFINITIONS
+# =====================================================
+Actions.lua
+
+# =====================================================
+# SIGNAL + EVENT INFRASTRUCTURE (CLEU)
+# =====================================================
+CombatSignals.lua
+CombatEvents.lua
+
+# =====================================================
+# ENGINE CONTROL LAYER
+# =====================================================
+CombatTriggerGate.lua
+Engine.lua
+EngineTicker.lua
+
+# =====================================================
+# INTELLIGENCE & PREDICTION SYSTEMS
+# =====================================================
+Intelligence.lua
+Prediction.lua
+PredictiveWindow.lua
+Timeline.lua
+WoWExt.lua
+Strategy.lua
+
+# =====================================================
+# UI / CONFIG / EVENTS / COMMANDS (always last)
+# =====================================================
+BossTimers.lua
+ConfigUI.lua
+TimelineUI.lua
+Events.lua
+Commands.lua
